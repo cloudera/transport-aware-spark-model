@@ -1,0 +1,12 @@
+scikit-learn
+pandas
+numpy
+matplotlib
+adjustText
+seaborn
+
+# For development and testing
+pytest
+pytest-cov
+ruff
+black

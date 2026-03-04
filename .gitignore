@@ -1,0 +1,20 @@
+# Ignore IDEA project files
+.idea/
+.venv/
+
+#Raw Data
+data/*
+
+# MacOS
+.DS_Store
+**/.DS_Store
+
+
+# Python cache
+__pycache__/
+
+*.pyo
+*.pyc
+
+**/*.pyc
+**/*.pyo
