@@ -99,7 +99,11 @@ def print_summary_metrics(
 # =============================================================================
 # Plotting
 # =============================================================================
-def plot_global_parity(y_observed: list[float], y_pred: list[float]) -> None:
+def plot_global_parity(
+    y_observed: list[float],
+    y_ta_grouping: list[float],
+    y_baseline: list[float],
+) -> None:
     plt.rcParams.update(
         {
             "font.size": 11,
@@ -109,34 +113,43 @@ def plot_global_parity(y_observed: list[float], y_pred: list[float]) -> None:
         }
     )
 
-    y_obs = np.asarray(y_observed, dtype=float)
-    y_hat = np.asarray(y_pred, dtype=float)
+    # User-defined exact limits
+    lo, hi = 0.32103146726034243, 1061.4410864740341
 
-    # log-scale safety
-    mask = (y_obs > 0) & (y_hat > 0)
-    y_obs = y_obs[mask]
-    y_hat = y_hat[mask]
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
-    if len(y_obs) == 0:
-        print("No positive values available for parity plot.")
-        return
+    def _draw_subplot(ax, y_hat_raw, title):
+        y_obs = np.asarray(y_observed, dtype=float)
+        y_hat = np.asarray(y_hat_raw, dtype=float)
 
-    print(f"Observed values: min={float(np.min(y_obs)):.4f}, max={float(np.max(y_obs)):.4f}")
+        # log-scale safety
+        mask = (y_obs > 0) & (y_hat > 0)
+        y_obs = y_obs[mask]
+        y_hat = y_hat[mask]
 
-    fig, ax = plt.subplots(figsize=(7.2, 4.8))
+        if len(y_obs) == 0:
+            return
 
-    ax.scatter(y_obs, y_hat, s=12, alpha=0.25)
+        ax.scatter(y_obs, y_hat, s=12, alpha=0.25, color="tab:blue")
 
-    lo = float(min(y_obs.min(), y_hat.min()))
-    hi = float(max(y_obs.max(), y_hat.max()))
+        ax.plot([lo, hi], [lo, hi], linestyle="--", linewidth=1.5, color="black")
 
-    ax.plot([lo, hi], [lo, hi], linestyle="--", linewidth=1.5)
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        
+        # Set fixed limits
+        ax.set_xlim(lo, hi)
+        ax.set_ylim(lo, hi)
+        
+        ax.set_xlabel("Observed job execution time [s]")
+        ax.set_ylabel("Predicted job execution time [s]")
+        ax.set_title(title)
+        ax.grid(True, which="both", alpha=0.2)
+        
+        print(f"Subplot '{title}': X-axis=[{lo}, {hi}], Y-axis=[{lo}, {hi}]")
 
-    ax.set_xscale("log")
-    ax.set_yscale("log")
-    ax.set_xlabel("Observed job execution time [s]")
-    ax.set_ylabel("Predicted job execution time [s]")
-    ax.grid(True, which="both", alpha=0.2)
+    _draw_subplot(ax1, y_baseline, "(a) Transport-agnostic baseline")
+    _draw_subplot(ax2, y_ta_grouping, "(b) Transport-aware model with dependency-aware aggregation")
 
     fig.tight_layout()
     plt.show()
@@ -270,8 +283,10 @@ def main() -> None:
             label=label,
         )
 
-    # Parity plot (paper figure style): transport-aware + dependency-aware grouping
-    plot_global_parity(global_observed, global_ta_grouping)
+    # Parity plot (paper figure style): transport-aware + dependency-aware grouping vs baseline
+    plot_global_parity(
+        global_observed, global_ta_grouping, global_baseline_cumulative
+    )
 
 
 if __name__ == "__main__":
