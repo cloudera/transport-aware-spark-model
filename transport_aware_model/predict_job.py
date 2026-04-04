@@ -97,6 +97,43 @@ def print_summary_metrics(
 
 
 # =============================================================================
+# Paper-style results table helper
+# =============================================================================
+def print_paper_style_results_table(
+    grouped: dict[tuple[float, float], dict[str, list[float]]],
+) -> None:
+    print("\nTABLE 12: Job-level runtime prediction accuracy under varying bandwidth and latency conditions.")
+    print(
+        f"{'Bandwidth':<12} {'Latency':<12} {'MAE (s)':>18} {'RMSE (s)':>18} {'WMAPE (%)':>18} {'R2':>18}"
+    )
+    print(
+        f"{'':<12} {'':<12} {'Baseline':>9} {'Proposed':>9} {'Baseline':>9} {'Proposed':>9} {'Baseline':>9} {'Proposed':>9} {'Baseline':>9} {'Proposed':>9}"
+    )
+
+    sorted_items = sorted(grouped.items(), key=lambda x: (-x[0][0], x[0][1]))
+
+    for idx, ((bw, latency), r) in enumerate(sorted_items):
+        m_grouping = compute_metrics(r["observed"], r["ta_grouping"])
+        m_baseline = compute_metrics(r["observed"], r["baseline_cumulative"])
+
+        print(
+            f"{f'{bw:g} Gb/s':<12} "
+            f"{f'{latency:.2f} ms':<12} "
+            f"{m_baseline['MAE']:9.2f} "
+            f"{m_grouping['MAE']:9.2f} "
+            f"{m_baseline['RMSE']:9.2f} "
+            f"{m_grouping['RMSE']:9.2f} "
+            f"{m_baseline['WMAPE%']:9.2f} "
+            f"{m_grouping['WMAPE%']:9.2f} "
+            f"{m_baseline['R2']:9.4f} "
+            f"{m_grouping['R2']:9.4f}"
+        )
+
+        if idx + 1 < len(sorted_items) and sorted_items[idx + 1][0][0] != bw:
+            print()
+
+
+# =============================================================================
 # Plotting
 # =============================================================================
 def plot_global_parity(
@@ -115,10 +152,12 @@ def plot_global_parity(
 
     # User-defined exact limits
     lo, hi = 0.32103146726034243, 1061.4410864740341
+    baseline_color = "#4F88B8"
+    proposed_color = "#D9924E"
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
-    def _draw_subplot(ax, y_hat_raw, title):
+    def _draw_subplot(ax, y_hat_raw, title, point_color):
         y_obs = np.asarray(y_observed, dtype=float)
         y_hat = np.asarray(y_hat_raw, dtype=float)
 
@@ -130,26 +169,223 @@ def plot_global_parity(
         if len(y_obs) == 0:
             return
 
-        ax.scatter(y_obs, y_hat, s=12, alpha=0.25, color="tab:blue")
+        ax.scatter(y_obs, y_hat, s=12, alpha=0.25, color=point_color)
 
         ax.plot([lo, hi], [lo, hi], linestyle="--", linewidth=1.5, color="black")
 
         ax.set_xscale("log")
         ax.set_yscale("log")
-        
+
         # Set fixed limits
         ax.set_xlim(lo, hi)
         ax.set_ylim(lo, hi)
-        
+
         ax.set_xlabel("Observed job execution time [s]")
         ax.set_ylabel("Predicted job execution time [s]")
         ax.set_title(title)
-        ax.grid(True, which="both", alpha=0.2)
-        
+        ax.grid(True, which="both", alpha=0.14)
+
         print(f"Subplot '{title}': X-axis=[{lo}, {hi}], Y-axis=[{lo}, {hi}]")
 
-    _draw_subplot(ax1, y_baseline, "(a) Transport-agnostic baseline")
-    _draw_subplot(ax2, y_ta_grouping, "(b) Transport-aware model with dependency-aware aggregation")
+    _draw_subplot(ax1, y_baseline, "Transport-agnostic baseline", baseline_color)
+    _draw_subplot(ax2, y_ta_grouping, "Proposed transport-aware model", proposed_color)
+
+    fig.tight_layout()
+    plt.show()
+
+
+def plot_residual_boxplots_by_runtime_bin(
+    y_observed: list[float],
+    y_ta_grouping: list[float],
+    y_baseline: list[float],
+) -> None:
+    # plt.rcParams.update(
+    #     {
+    #         "font.size": 11,
+    #         "axes.labelsize": 12,
+    #         "xtick.labelsize": 11,
+    #         "ytick.labelsize": 11,
+    #     }
+    # )
+
+    y_obs = np.asarray(y_observed, dtype=float)
+    y_prop = np.asarray(y_ta_grouping, dtype=float)
+    y_base = np.asarray(y_baseline, dtype=float)
+
+    residual_base = y_base - y_obs
+    residual_prop = y_prop - y_obs
+    baseline_color = "#4F88B8"
+    proposed_color = "#D9924E"
+
+    # Runtime bins in seconds chosen to match the log-scale spread of job durations.
+    bin_edges = np.asarray([0.3, 10.0, 30.0, 100.0, np.inf], dtype=float)
+    bin_labels = [
+        "0.3–10",
+        "10–30",
+        "30–100",
+        "100+",
+    ]
+
+    baseline_data: list[np.ndarray] = []
+    proposed_data: list[np.ndarray] = []
+    used_labels: list[str] = []
+    bin_counts: list[int] = []
+
+    for i, label in enumerate(bin_labels):
+        lo = bin_edges[i]
+        hi = bin_edges[i + 1]
+        mask = (y_obs >= lo) & (y_obs < hi)
+        if not np.any(mask):
+            continue
+
+        baseline_data.append(residual_base[mask])
+        proposed_data.append(residual_prop[mask])
+        used_labels.append(label)
+        bin_counts.append(int(np.sum(mask)))
+
+    if not baseline_data:
+        return
+
+    x = np.arange(len(used_labels), dtype=float)
+    offset = 0.18
+    width = 0.30
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+
+    bp_base = ax.boxplot(
+        baseline_data,
+        positions=x - offset,
+        widths=width,
+        patch_artist=True,
+        showfliers=False,
+        medianprops={"color": "black", "linewidth": 1.3},
+        boxprops={"facecolor": baseline_color, "alpha": 0.55},
+        whiskerprops={"color": baseline_color},
+        capprops={"color": baseline_color},
+    )
+    bp_prop = ax.boxplot(
+        proposed_data,
+        positions=x + offset,
+        widths=width,
+        patch_artist=True,
+        showfliers=False,
+        medianprops={"color": "black", "linewidth": 1.3},
+        boxprops={"facecolor": proposed_color, "alpha": 0.55},
+        whiskerprops={"color": proposed_color},
+        capprops={"color": proposed_color},
+    )
+
+    ax.axhline(0.0, linestyle="--", linewidth=1.5, color="black")
+    xtick_labels = [f"{label}\n(n={count})" for label, count in zip(used_labels, bin_counts)]
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(xtick_labels)
+    ax.set_xlabel("Observed job runtime bin [s]")
+    ax.set_ylabel("Job runtime residual (predicted - observed) [s]")
+    # ax.set_title("Job-level residuals by runtime bin")
+    ax.grid(True, axis="y", alpha=0.25)
+
+    ax.legend(
+        [bp_base["boxes"][0], bp_prop["boxes"][0]],
+        ["Transport-agnostic baseline", "Proposed transport-aware model"],
+        loc="best",
+    )
+
+    fig.tight_layout()
+    plt.show()
+
+
+def plot_percentage_residual_boxplots_by_runtime_bin(
+    y_observed: list[float],
+    y_ta_grouping: list[float],
+    y_baseline: list[float],
+) -> None:
+    y_obs = np.asarray(y_observed, dtype=float)
+    y_prop = np.asarray(y_ta_grouping, dtype=float)
+    y_base = np.asarray(y_baseline, dtype=float)
+
+    positive_mask = y_obs > 0
+    y_obs = y_obs[positive_mask]
+    y_prop = y_prop[positive_mask]
+    y_base = y_base[positive_mask]
+
+    residual_base_pct = (y_base - y_obs) / y_obs * 100.0
+    residual_prop_pct = (y_prop - y_obs) / y_obs * 100.0
+    baseline_color = "#4F88B8"
+    proposed_color = "#D9924E"
+
+    # Runtime bins in seconds chosen to match the log-scale spread of job durations.
+    bin_edges = np.asarray([0.3, 10.0, 30.0, 100.0, np.inf], dtype=float)
+    bin_labels = [
+        "0.3–10",
+        "10–30",
+        "30–100",
+        "100+",
+    ]
+
+    baseline_data: list[np.ndarray] = []
+    proposed_data: list[np.ndarray] = []
+    used_labels: list[str] = []
+    bin_counts: list[int] = []
+
+    for i, label in enumerate(bin_labels):
+        lo = bin_edges[i]
+        hi = bin_edges[i + 1]
+        mask = (y_obs >= lo) & (y_obs < hi)
+        if not np.any(mask):
+            continue
+
+        baseline_data.append(residual_base_pct[mask])
+        proposed_data.append(residual_prop_pct[mask])
+        used_labels.append(label)
+        bin_counts.append(int(np.sum(mask)))
+
+    if not baseline_data:
+        return
+
+    x = np.arange(len(used_labels), dtype=float)
+    offset = 0.18
+    width = 0.30
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+
+    bp_base = ax.boxplot(
+        baseline_data,
+        positions=x - offset,
+        widths=width,
+        patch_artist=True,
+        showfliers=False,
+        medianprops={"color": "black", "linewidth": 1.3},
+        boxprops={"facecolor": baseline_color, "alpha": 0.55},
+        whiskerprops={"color": baseline_color},
+        capprops={"color": baseline_color},
+    )
+    bp_prop = ax.boxplot(
+        proposed_data,
+        positions=x + offset,
+        widths=width,
+        patch_artist=True,
+        showfliers=False,
+        medianprops={"color": "black", "linewidth": 1.3},
+        boxprops={"facecolor": proposed_color, "alpha": 0.55},
+        whiskerprops={"color": proposed_color},
+        capprops={"color": proposed_color},
+    )
+
+    ax.axhline(0.0, linestyle="--", linewidth=1.5, color="black")
+    xtick_labels = [f"{label}\n(n={count})" for label, count in zip(used_labels, bin_counts)]
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(xtick_labels)
+    ax.set_xlabel("Observed job runtime bin [s]")
+    ax.set_ylabel("Job runtime residual (predicted - observed) [%]")
+    ax.grid(True, axis="y", alpha=0.25)
+
+    ax.legend(
+        [bp_base["boxes"][0], bp_prop["boxes"][0]],
+        ["Transport-agnostic baseline", "Proposed transport-aware model"],
+        loc="best",
+    )
 
     fig.tight_layout()
     plt.show()
@@ -273,7 +509,8 @@ def main() -> None:
         return
 
     # Per-regime metrics (consistent with paper-style regime reporting)
-    for (bw, latency), r in sorted(grouped.items(), key=lambda x: (-x[0][0], x[0][1])):
+    sorted_grouped_items = sorted(grouped.items(), key=lambda x: (-x[0][0], x[0][1]))
+    for (bw, latency), r in sorted_grouped_items:
         label = f"bw={bw:g} Gbps, latency={latency:g} ms"
         print_summary_metrics(
             r["observed"],
@@ -283,10 +520,22 @@ def main() -> None:
             label=label,
         )
 
+    print_paper_style_results_table(grouped)
+
     # Parity plot (paper figure style): transport-aware + dependency-aware grouping vs baseline
     plot_global_parity(
         global_observed, global_ta_grouping, global_baseline_cumulative
     )
+
+    # Residual boxplots by observed runtime bin
+    plot_residual_boxplots_by_runtime_bin(
+        global_observed, global_ta_grouping, global_baseline_cumulative
+    )
+
+    # Percentage residual boxplots by observed runtime bin
+    # plot_percentage_residual_boxplots_by_runtime_bin(
+    #     global_observed, global_ta_grouping, global_baseline_cumulative
+    # )
 
 
 if __name__ == "__main__":
