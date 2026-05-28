@@ -2,7 +2,7 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
-.PHONY: help prepare-data calibrate predict-stage predict-job repro all clean \
+.PHONY: help prepare-data calibrate sensitivity predict-stage predict-job repro all clean \
         lint format check
 
 PYTHON ?= python
@@ -16,7 +16,8 @@ help:
 	@echo "  calibrate      Calibrate transport coefficients (NNLS)"
 	@echo "  predict-stage  Run stage-level predictions"
 	@echo "  predict-job    Run job-level predictions"
-	@echo "  repro          Full pipeline (prepare-data -> calibrate -> predict-stage -> predict-job)"
+	@echo "  sensitivity    Run one-at-a-time sensitivity analysis of stage-level predictions"
+	@echo "  repro          Full pipeline (prepare-data -> calibrate -> sensitivity -> predict-stage -> predict-job)"
 	@echo "  clean          Remove caches and build artifacts"
 
 extract-data:
@@ -31,6 +32,10 @@ calibrate:
 	@echo "Running system identification / calibration..."
 	$(PYTHON) -m $(PACKAGE).calibrate
 
+sensitivity:
+	@echo "Running sensitivity analysis..."
+	$(PYTHON) -m $(PACKAGE).sensitivity
+
 predict-stage:
 	@echo "Running stage-level predictions..."
 	$(PYTHON) -m $(PACKAGE).predict_stage
@@ -39,7 +44,7 @@ predict-job:
 	@echo "Running job-level predictions..."
 	$(PYTHON) -m $(PACKAGE).predict_job
 
-repro: prepare-data calibrate predict-stage predict-job
+repro: prepare-data calibrate sensitivity predict-stage predict-job
 all: repro
 
 clean:
