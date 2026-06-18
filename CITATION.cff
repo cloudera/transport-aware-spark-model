@@ -1,0 +1,43 @@
+cff-version: 1.2.0
+message: "If you use this software or the accompanying dataset, please cite the paper (see preferred-citation below)."
+title: "Transport-Aware Performance Model and Dataset"
+type: dataset
+authors:
+  - family-names: Kanto
+    given-names: Attila
+    orcid: "https://orcid.org/0009-0007-1401-8251"
+  - family-names: Marosi
+    given-names: Attila Csaba
+    orcid: "https://orcid.org/0000-0001-9105-6816"
+version: "1.0.0"
+date-released: "2026-06-17"
+license: Apache-2.0
+repository-code: "https://github.com/cloudera/transport-aware-spark-model"
+url: "https://github.com/cloudera/transport-aware-spark-model"
+keywords:
+  - big data
+  - cloud bursting
+  - hybrid cloud
+  - network-constrained systems
+  - performance modeling
+  - system identification
+  - transport-aware modeling
+preferred-citation:
+  type: article
+  title: "Transport-Aware Performance Modeling for Big Data Workloads in Network-Constrained Hybrid Cloud Systems"
+  authors:
+    - family-names: Kanto
+      given-names: Attila
+      orcid: "https://orcid.org/0009-0007-1401-8251"
+    - family-names: Marosi
+      given-names: Attila Csaba
+      orcid: "https://orcid.org/0000-0001-9105-6816"
+  journal: "IEEE Access"
+  year: 2026
+  month: 6
+  doi: "10.1109/ACCESS.2026.3704628"
+  issn: "2169-3536"
+  volume: 14
+  start: 92831
+  end: 92855
+  url: "https://ieeexplore.ieee.org/document/11569730"
