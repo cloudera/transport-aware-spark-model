@@ -1,5 +1,7 @@
 # Transport-Aware Performance Model and Dataset
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21353271.svg)](https://doi.org/10.5281/zenodo.21353271)
+
 Reference implementation of a transport-aware submission-time performance predictor for big data workloads in hybrid cloud environments.
 
 Accompanies the IEEE Access paper: [Transport-Aware Performance Modeling for Big Data Workloads in Network-Constrained Hybrid Cloud Systems](https://ieeexplore.ieee.org/document/11569730). If you use this model or dataset, please [cite the paper](#how-to-cite).
